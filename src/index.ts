@@ -17,46 +17,63 @@
 // os.cpus()
 // Returns an array representing each CPU core available on the machine.
 
+// differnece between cluster and worker
+//_______________________________________
+// Worker Threads: Share memory, run within the same process, and are suited for parallel 
+// execution of CPU-bound tasks.
+
+// Cluster Module: Do not share memory, run as separate processes on different CPU cores, 
+// and are suited for scaling I/O-bound applications like web servers.
+
 import cluster from 'cluster';
-import express from 'express';
+import { cpus } from 'os';
 
-import os from 'os';
-
-
-
-
-const app=express()
 if (cluster.isPrimary) {
-  // This block runs in the primary process
   console.log(`Primary process PID: ${process.pid}`);
 
-  // Fork workers equal to the number of CPU cores
-  const numCPUs = os.cpus().length;
-  console.log(os.cpus().length," there are this number of cpus");
-  for (let i = 0; i < numCPUs; i++) {
-    console.log("i am forking....")
-    cluster.fork();
+  // Define ranges for workers
+  const ranges = [
+    { start: 1, end: 100000 },     // Worker 1 range
+    { start: 100001, end: 200000 },
+    {start:200001,end:300000} ,
+    {start:300001,end:400000} // Worker 2 range
+  ];
+
+  // Fork workers and pass ranges as environment variables
+  ranges.forEach((range, index) => {
+    const worker = cluster.fork({
+      START: range.start,
+      END: range.end,
+    });
+
+    worker.on('message', (result: number) => {
+      console.log(`Worker ${worker.process.pid} completed task ${index + 1} with result: ${result}`);
+    });
+
+    worker.on('exit', (code) => {
+      if (code === 0) {
+        console.log(`Worker ${worker.process.pid} finished successfully.`);
+      } else {
+        console.error(`Worker ${worker.process.pid} exited with code ${code}`);
+      }
+    });
+  });
+} else {
+  // Worker process
+  const start = parseInt(process.env.START || '0', 10);
+  const end = parseInt(process.env.END || '0', 10);
+
+  // Calculate sum for the assigned range
+  let sum = 0;
+  for (let i = start; i <= end; i++) {
+    sum += i;
   }
 
-  // Log when a worker exits
-  cluster.on('exit', (worker, code, signal) => {
-    console.log(`Worker ${worker.process.pid} exited. Code: ${code}, Signal: ${signal}`);
-    // Optionally restart the worker
-    cluster.fork();
-  });
+  // Send the result back to the primary process
+  if (process.send) {
+    process.send(sum);
+  }
 
-} else {
-  // This block runs in the worker process
-//   http.createServer((req, res) => {
-//     res.writeHead(200);
-//     res.end(`Response from worker PID: ${process.pid}`);
-//   }).listen(8000);
-
-//   console.log(`Worker process PID: ${process.pid} started`);
-app.use('/',(req,res,next)=>{
-    res.json({message:"hello server is live"})
-})
-
-
+  // Exit the worker
+  process.exit(0);
 }
-app.listen(8000,()=>{console.log("server is live")})

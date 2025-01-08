@@ -2,6 +2,7 @@
 # Ignore the node_modules directory
 node_modules/
 
+
 # Ignore Logs
 logs
 *.log
@@ -12,4 +13,5 @@ logs
 # The file containing environment variables 
 .env
 
+#git check-ignore app/access.log  
 
